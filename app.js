@@ -2,7 +2,7 @@
    Il crée les pages (accueil, liste des TP, fiche TP, compétences, données) dans la balise <main id="app">
    de index.html, et enregistre les données dans le navigateur (localStorage, et IndexedDB pour les fichiers).
    L'onglet "Données" permet d'exporter / importer une sauvegarde JSON (sauvegarde ou changement de PC).
-   Plan du fichier : voir docs/ARCHITECTURE.md à la racine du dépôt. */
+   Plan : chaque partie (données, routeur, pages…) commence par un commentaire « ---------- Nom ---------- ». */
 
 const STORE_KEY = 'cielarte-v1';
 const PALETTE_KEY = 'cielarte-palette';
@@ -117,11 +117,11 @@ function exemple() {
 
 
 /* TP ajoutés après coup : insérés une seule fois, même si le navigateur a déjà des données */
-/* Documents fournis avec les TP : un sous-dossier par TP dans site/documents-tp/ */
-const DOSSIER_DOCS_TP = 'documents-tp/';
-/* Avant la réorganisation du dépôt, ces documents étaient dans docs/ : les données déjà enregistrées
-   ou les sauvegardes JSON gardent cet ancien chemin, normaliser() le corrige. */
-const ANCIENS_CHEMINS = { 'docs/': DOSSIER_DOCS_TP + 'documenter-reseau-cabinet/' };
+/* Documents fournis avec les TP : dans docs/ */
+const DOSSIER_DOCS_TP = 'docs/';
+/* Pendant quelques heures (10/11/2026), ces documents étaient dans documents-tp/documenter-reseau-cabinet/ :
+   les données enregistrées à ce moment gardent ce chemin, normaliser() le remet sur docs/. */
+const ANCIENS_CHEMINS = { 'documents-tp/documenter-reseau-cabinet/': DOSSIER_DOCS_TP };
 /* Réécrit un ancien chemin de document vers le dossier actuel, pour ne pas casser les données déjà enregistrées. */
 function cheminDocument(src) {
   if (!src) return src;
@@ -131,7 +131,7 @@ function cheminDocument(src) {
 
 /* TP réel « Documenter le réseau d'un cabinet », livré avec ses documents. */
 function tpCabinet() {
-  const D = (nom, fichier, type, taille) => ({ id: 'seed-' + fichier, nom, type, taille, date: '2026-11-05T10:00:00.000Z', src: DOSSIER_DOCS_TP + 'documenter-reseau-cabinet/' + fichier, note: '', versions: [] });
+  const D = (nom, fichier, type, taille) => ({ id: 'seed-' + fichier, nom, type, taille, date: '2026-11-05T10:00:00.000Z', src: DOSSIER_DOCS_TP + fichier, note: '', versions: [] });
   return {
     id: 'tp-cabinet', titre: 'Documenter le réseau d\'un cabinet', matiere: 'Réseaux',
     date: '2026-11-05', duree: 120, statut: 'done',
