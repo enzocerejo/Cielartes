@@ -1,0 +1,9 @@
+# Fichiers créés par le système ou l'éditeur, inutiles dans le dépôt
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.bkp
+*.drawio.bkp

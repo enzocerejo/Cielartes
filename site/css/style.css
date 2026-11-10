@@ -1,4 +1,5 @@
-/* Cielarte : bandeau de couleur en haut, contenu centré (1120px) qui chevauche le bandeau,
+/* À quoi sert ce fichier : l'apparence de tout le site (couleurs, palettes, mode sombre, mise en page).
+   Cielarte : bandeau de couleur en haut, contenu centré (1120px) qui chevauche le bandeau,
    parcours horizontal pour chaque TP, sommaire à gauche + carte de lecture à droite pour les étapes. */
 :root {
   /* palette (changée par data-palette) */

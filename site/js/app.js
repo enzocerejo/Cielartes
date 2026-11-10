@@ -1,5 +1,8 @@
-/* Cielarte : carnet de TP. Site statique, données enregistrées dans le navigateur (localStorage).
-   L'onglet "Données" permet d'exporter / importer une sauvegarde JSON (sauvegarde ou changement de PC). */
+/* À quoi sert ce fichier : toute la logique du site Cielarte (carnet de TP).
+   Il crée les pages (accueil, liste des TP, fiche TP, compétences, données) dans la balise <main id="app">
+   de index.html, et enregistre les données dans le navigateur (localStorage, et IndexedDB pour les fichiers).
+   L'onglet "Données" permet d'exporter / importer une sauvegarde JSON (sauvegarde ou changement de PC).
+   Plan du fichier : voir docs/ARCHITECTURE.md à la racine du dépôt. */
 
 const STORE_KEY = 'cielarte-v1';
 const PALETTE_KEY = 'cielarte-palette';
@@ -45,6 +48,7 @@ const ic = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const nowISO = () => new Date().toISOString();
 
+/* Données de départ, pour que le site ne soit pas vide à la première visite. */
 function exemple() {
   return {
     prenom: 'Enzo',
@@ -113,8 +117,21 @@ function exemple() {
 
 
 /* TP ajoutés après coup : insérés une seule fois, même si le navigateur a déjà des données */
+/* Documents fournis avec les TP : un sous-dossier par TP dans site/documents-tp/ */
+const DOSSIER_DOCS_TP = 'documents-tp/';
+/* Avant la réorganisation du dépôt, ces documents étaient dans docs/ : les données déjà enregistrées
+   ou les sauvegardes JSON gardent cet ancien chemin, normaliser() le corrige. */
+const ANCIENS_CHEMINS = { 'docs/': DOSSIER_DOCS_TP + 'documenter-reseau-cabinet/' };
+/* Réécrit un ancien chemin de document vers le dossier actuel, pour ne pas casser les données déjà enregistrées. */
+function cheminDocument(src) {
+  if (!src) return src;
+  for (const ancien in ANCIENS_CHEMINS) if (src.startsWith(ancien)) return ANCIENS_CHEMINS[ancien] + src.slice(ancien.length);
+  return src;
+}
+
+/* TP réel « Documenter le réseau d'un cabinet », livré avec ses documents. */
 function tpCabinet() {
-  const D = (nom, fichier, type, taille) => ({ id: 'seed-' + fichier, nom, type, taille, date: '2026-11-05T10:00:00.000Z', src: 'docs/' + fichier, note: '', versions: [] });
+  const D = (nom, fichier, type, taille) => ({ id: 'seed-' + fichier, nom, type, taille, date: '2026-11-05T10:00:00.000Z', src: DOSSIER_DOCS_TP + 'documenter-reseau-cabinet/' + fichier, note: '', versions: [] });
   return {
     id: 'tp-cabinet', titre: 'Documenter le réseau d\'un cabinet', matiere: 'Réseaux',
     date: '2026-11-05', duree: 120, statut: 'done',
@@ -156,6 +173,7 @@ function tpCabinet() {
   };
 }
 const SEEDS = [tpCabinet];
+/* Ajoute une seule fois les TP livrés avec le site, sans écraser ce que l'utilisateur a déjà. */
 function ajouterSeeds(d) {
   d.seeds = d.seeds || [];
   SEEDS.forEach(f => { const t = f(); if (!d.seeds.includes(t.id)) { d.seeds.push(t.id); if (!d.tps.some(x => x.id === t.id)) d.tps.unshift(t); } });
@@ -163,19 +181,26 @@ function ajouterSeeds(d) {
 }
 
 let db = charger();
+/* Lit les données du navigateur au démarrage, ou part de l'exemple s'il n'y en a pas. */
 function charger() {
   try { const raw = localStorage.getItem(STORE_KEY); if (raw) return ajouterSeeds(normaliser(JSON.parse(raw))); } catch (e) { /* stockage indisponible */ }
   return ajouterSeeds(normaliser(exemple()));
 }
+/* Complète les champs manquants des anciennes sauvegardes, pour que le reste du code n'ait pas à le vérifier. */
 function normaliser(d) {
   d.prenom = d.prenom || '';
   d.tps.forEach(t => {
     t.etapes = t.etapes || []; t.quiz = t.quiz || []; t.commentaires = t.commentaires || [];
     t.competences = t.competences || []; t.vocabulaire = t.vocabulaire || []; t.notes = t.notes || '';
     t.documents = t.documents || []; t.autoeval = t.autoeval || []; t.retenu = t.retenu || '';
+    t.documents.forEach(doc => {
+      doc.src = cheminDocument(doc.src);
+      (doc.versions || []).forEach(v => { v.src = cheminDocument(v.src); });
+    });
   });
   return d;
 }
+/* Enregistre toutes les données dans le navigateur après chaque modification. */
 function sauver() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch (e) { toast('Impossible d\'enregistrer dans ce navigateur'); }
 }
@@ -195,6 +220,7 @@ const pluriel = (n, mot) => `${n} ${mot}${n > 1 && !INVARIABLES.includes(mot) ? 
 function inline(s) {
   return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
+/* Mini Markdown (titres, listes, code) pour mettre en forme les textes saisis. */
 function md(texte) {
   if (!texte) return '';
   return texte.split(/```\n?/).map((part, i) => {
@@ -207,6 +233,7 @@ function md(texte) {
   }).join('');
 }
 
+/* Petit message de confirmation en bas de l'écran. */
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
   clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.add('hidden'), 2200);
@@ -216,6 +243,7 @@ function ouvrirModal(html) {
   const first = $('#modal-box input:not([type=radio]):not([type=checkbox]), #modal-box textarea'); if (first) first.focus();
 }
 function fermerModal() { $('#modal').classList.add('hidden'); $('#modal-box').innerHTML = ''; $('#modal-box').classList.remove('wide'); }
+/* Demande confirmation avant une action qu'on ne peut pas annuler. */
 function confirmer(msg, onOk) {
   const c = $('#confirm');
   c.innerHTML = `<div class="modal-box confirm-box"><p>${esc(msg)}</p><div class="row" style="justify-content:flex-end"><button class="btn" data-c="non">Annuler</button><button class="btn danger-fill" data-c="oui">Confirmer</button></div></div>`;
@@ -231,6 +259,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- Bandeau : salutation, navigation, palettes ---------- */
 const NAV = [['accueil', 'Accueil', 'home'], ['tps', 'Mes TP', 'layers'], ['competences', 'Compétences', 'badge'], ['donnees', 'Données', 'data']];
+/* Met à jour le bandeau du haut et surligne la page active. */
 function bandeau(actif) {
   $('#hello-name').textContent = db.prenom ? `Bonjour ${db.prenom}` : 'Bonjour';
   const d = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -274,6 +303,7 @@ function appliquerPalette(id) {
 
 /* ---------- Routeur ---------- */
 let etatUI = { section: 'presentation', etape: 0, filtre: { q: '', matiere: '', statut: '' } };
+/* Choisit la page à afficher selon l'adresse (#tps, #tp-…, #competences…) : c'est le point de départ de chaque navigation. */
 function route() {
   const h = location.hash.replace(/^#/, '');
   if (h.startsWith('tp-') && getTP(h.slice(3))) { bandeau('tps'); return vueTP(getTP(h.slice(3))); }
@@ -290,6 +320,7 @@ function matieres() {
   db.tps.forEach(t => { const k = t.matiere || 'Sans matière'; (m[k] = m[k] || []).push(t); });
   return m;
 }
+/* Page d'accueil : salutation, matières et derniers TP. */
 function vueAccueil() {
   const m = matieres();
   const enCours = db.tps.filter(t => t.statut === 'doing');
@@ -355,6 +386,7 @@ function carteTP(t) {
       </div>
     </a>`;
 }
+/* Page « Mes TP » : liste avec recherche et filtres. */
 function vueListe() {
   const noms = Object.keys(matieres()).filter(x => x !== 'Sans matière').sort();
   const f = etatUI.filtre;
@@ -389,6 +421,7 @@ function vueListe() {
 }
 
 /* ---------- Formulaire TP ---------- */
+/* Formulaire de création ou de modification d'un TP. */
 function formTP(tp) {
   const edit = !!tp;
   tp = tp || { titre: '', matiere: etatUI.filtre.matiere || '', date: new Date().toISOString().slice(0, 10), duree: '', statut: 'todo', objectif: '', competences: [], vocabulaire: [], autoeval: [] };
@@ -433,6 +466,7 @@ function formTP(tp) {
 }
 
 /* ---------- Page d'un TP : parcours ---------- */
+/* Page d'un TP : parcours horizontal qui affiche la section choisie (étapes, documents, quiz…). */
 function vueTP(tp) {
   const faites = tp.etapes.filter(e => e.fait).length;
   const nodes = [
@@ -600,6 +634,7 @@ async function ajouterFichiers(tp, fichiers, remplace) {
   sauver(); vueTP(tp);
   toast(remplace ? 'Nouvelle version enregistrée' : pluriel(fichiers.length, 'document') + ' ajouté' + (fichiers.length > 1 ? 's' : ''));
 }
+/* Section Documents d'un TP : dépôt de fichiers, liste et versions. */
 function secDocuments(tp, el) {
   el.innerHTML = `
     ${teteSection('Documents', `<span class="muted">${pluriel(tp.documents.length, 'document')}</span>`)}
@@ -694,6 +729,7 @@ async function rendre(doc, blob, zone) {
   }
   zone.innerHTML = '<div class="empty">Pas d\'aperçu pour ce type de fichier. Tu peux toujours garder une note et ses versions ici.</div>';
 }
+/* Ouvre l'aperçu d'un document (PDF, Word, image, draw.io…) dans une fenêtre. */
 async function visionneuse(tp, doc, version) {
   ouvrirModal(`
     <div class="viewer">
@@ -930,6 +966,7 @@ function secBilan(tp, el) {
 }
 
 /* ---------- Compétences ---------- */
+/* Page Compétences : chaque compétence avec les TP où elle a été travaillée. */
 function vueCompetences() {
   const map = {};
   db.tps.forEach(t => t.competences.forEach(c => (map[c] = map[c] || []).push(t)));
@@ -948,6 +985,7 @@ function vueCompetences() {
 }
 
 /* ---------- Données ---------- */
+/* Page Données : sauvegarde, import et remise à zéro. */
 function vueDonnees() {
   $('#app').innerHTML = `
     <section class="panel">
